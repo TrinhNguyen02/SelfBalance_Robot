@@ -1,0 +1,8 @@
+control.c:17:9:constrain	24	static
+control.c:28:6:adjustPreiodTM1	40	static
+control.c:59:6:adjustPreiodTM2	40	static
+control.c:101:7:stabilityPDControl	48	static
+control.c:122:7:speedPIControl	40	static
+control.c:138:7:positionPDControl	32	static
+control.c:151:6:setMotorSpeedM1	24	static
+control.c:196:6:setMotorSpeedM2	24	static
