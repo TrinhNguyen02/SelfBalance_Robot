@@ -36,15 +36,13 @@
 #define MAX_STEERING_PRO 260   // Max recommended value: 280
 #define MAX_TARGET_ANGLE_PRO 26   // Max recommended value: 32
 
-// Default control terms for EVO 2
-#define KP 0.32
-#define KD 0.05
-#define KP_THROTTLE 0.010
-#define KI_THROTTLE 0.02
-
-
-#define KP_POSITION 0.1
-#define KD_POSITION 0.4
+// Default control terms for EVO 2Q
+#define KP 0.1
+#define KD 0.09
+#define KP_THROTTLE 0.040
+#define KI_THROTTLE 0.01
+#define KP_POSITION 0.02
+#define KD_POSITION 0.07
 
 
 // Control gains for raiseup (the raiseup movement requiere special control parameters)
@@ -57,7 +55,7 @@
 #define ITERM_MAX_ERROR 30   // Iterm windup constants for PI control
 #define ITERM_MAX 10000
 
-#define ANGLE_OFFSET 2    // Offset angle for balance (to compensate robot own weight distribution)
+#define ANGLE_OFFSET 0.0  // Offset angle for balance (to compensate robot own weight distribution)
 
 uint8_t cascade_control_loop_counter = 0;
 
@@ -126,14 +124,13 @@ static void MX_TIM3_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-//void delay_us (uint16_t us)
-//{
-//	__HAL_TIM_SET_COUNTER(&htim3,0);  // set the counter value a 0
-//	while (__HAL_TIM_GET_COUNTER(&htim3) < us);  // wait for the counter to reach the us input in the parameter
-//}
+void delay_us (uint16_t us)
+{
+	__HAL_TIM_SET_COUNTER(&htim3,0);  // set the counter value a 0
+	while (__HAL_TIM_GET_COUNTER(&htim3) < us);  // wait for the counter to reach the us input in the parameter
+}
 /* USER CODE END 0 */
 float MPU_sensor_angle;
-float MPU_sensor_angleX;
 /**
   * @brief  The application entry point.
   * @retval int
@@ -149,7 +146,7 @@ int main(void)
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
 
 
-		HAL_Init();
+	HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -178,28 +175,24 @@ int main(void)
 
   /* USER CODE END 2 */
   timer_old = __HAL_TIM_GET_COUNTER(&htim3);
-
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
+	  timer_value = __HAL_TIM_GET_COUNTER(&htim3);
 	    loop_counter++;
 	    slow_loop_counter++;
 	    dt = (timer_value - timer_old) * 0.000001; // dt in seconds
 	    timer_old = timer_value;
-	    timer_value = __HAL_TIM_GET_COUNTER(&htim3);
+
 	    angle_adjusted_Old = angle_adjusted;
 //	     Get new orientation angle from IMU (MPU6050)
 	    MPU6050_Read_All(&hi2c1, &MPU6050);
 	    MPU_sensor_angle = (float)MPU6050.KalmanAngleY;
-//	    MPU_sensor_angleX = (float)MPU6050.KalmanAngleX;
-
-
 	    angle_adjusted = MPU_sensor_angle + angle_offset;
-//	    if ((MPU_sensor_angle>-5)&&(MPU_sensor_angle<15))
-//	      angle_adjusted_filtered = angle_adjusted_filtered*0.99 + MPU_sensor_angle*0.01;
-
+	    if ((MPU_sensor_angle>-15)&&(MPU_sensor_angle<15))
+	      angle_adjusted_filtered = angle_adjusted_filtered*0.99 + MPU_sensor_angle*0.01;
 
 
 
@@ -215,23 +208,22 @@ int main(void)
 	      motor1_control = positionPDControl(steps1, target_steps1, Kp_position, Kd_position, speed_M1);
 	      motor2_control = positionPDControl(steps2, target_steps2, Kp_position, Kd_position, speed_M2);
 
-//	       Convert from motor position control to throttle / steering commands
+	      // Convert from motor position control to throttle / steering commands
 	      throttle = (motor1_control + motor2_control) / 2;
-	      throttle = constrain(throttle, -10, 10);
+	      throttle = constrain(throttle, -190, 190);
 	      steering = motor2_control - motor1_control;
-	      steering = constrain(steering, -10, 10);
+	      steering = constrain(steering, -50, 50);
 
 	    // ROBOT SPEED CONTROL: This is a PI controller.
 	    //    input:user throttle(robot speed), variable: estimated robot speed, output: target robot angle to get the desired speed
-	    target_angle = 0;
-	      	    target_angle = speedPIControl(dt, estimated_speed_filtered, throttle, Kp_thr, Ki_thr);
+	    target_angle = speedPIControl(dt, estimated_speed_filtered, throttle, Kp_thr, Ki_thr);
 	    target_angle = constrain(target_angle, -max_target_angle, max_target_angle); // limited output
 
 
 
-//	     Stability control (100Hz loop): This is a PD controller.
-//	        input: robot target angle(from SPEED CONTROL), variable: robot angle, output: Motor speed
-//	        We integrate the output (sumatory), so the output is really the motor acceleration, not motor speed.
+	    // Stability control (100Hz loop): This is a PD controller.
+	    //    input: robot target angle(from SPEED CONTROL), variable: robot angle, output: Motor speed
+	    //    We integrate the output (sumatory), so the output is really the motor acceleration, not motor speed.
 	    control_output += stabilityPDControl(dt, angle_adjusted, target_angle, Kp, Kd);
 	    control_output = constrain(control_output, -MAX_CONTROL_OUTPUT, MAX_CONTROL_OUTPUT); // Limit max output from control
 
@@ -243,18 +235,18 @@ int main(void)
 	    motor1 = constrain(motor1, -MAX_CONTROL_OUTPUT, MAX_CONTROL_OUTPUT);
 	    motor2 = constrain(motor2, -MAX_CONTROL_OUTPUT, MAX_CONTROL_OUTPUT);
 
-	    int angle_ready = 70;  // Default angle
+	    int angle_ready = 74;  // Default angle
 	    if ((angle_adjusted < angle_ready) && (angle_adjusted > -angle_ready)) // Is robot ready (upright?)
 	    {
 	      // NORMAL MODE
-	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, RESET);  // Motors enable
+	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, SET);  // Motors enable
 	      // NOW we send the commands to the motors
 	      setMotorSpeedM1(motor1);
 	      setMotorSpeedM2(motor2);
 	    }
 	    else   // Robot not ready (flat), angle > angle_ready => ROBOT OFF
 	    {
-	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, SET); // Disable motors
+	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, RESET); // Disable motors
 	      setMotorSpeedM1(0);
 	      setMotorSpeedM2(0);
 	      PID_errorSum = 0;  // Reset PID I term
@@ -367,7 +359,7 @@ static void MX_TIM1_Init(void)
   /* USER CODE BEGIN TIM1_Init 1 */
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 35;
+  htim1.Init.Prescaler = 36;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 65535;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -413,7 +405,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 35;
+  htim2.Init.Prescaler = 36;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 65535;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;

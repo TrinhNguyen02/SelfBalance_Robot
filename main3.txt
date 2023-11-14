@@ -37,14 +37,12 @@
 #define MAX_TARGET_ANGLE_PRO 26   // Max recommended value: 32
 
 // Default control terms for EVO 2
-#define KP 0.32
-#define KD 0.05
-#define KP_THROTTLE 0.010
-#define KI_THROTTLE 0.02
-
-
-#define KP_POSITION 0.1
-#define KD_POSITION 0.4
+#define KP 0.02
+#define KD 0.00050
+#define KP_THROTTLE 0.0080
+#define KI_THROTTLE 0.01
+#define KP_POSITION 0.06
+#define KD_POSITION 0.45
 
 
 // Control gains for raiseup (the raiseup movement requiere special control parameters)
@@ -53,11 +51,11 @@
 #define KP_THROTTLE_RAISEUP 0   // No speed control on raiseup
 #define KI_THROTTLE_RAISEUP 0.0
 
-#define MAX_CONTROL_OUTPUT 500
+#define MAX_CONTROL_OUTPUT 200
 #define ITERM_MAX_ERROR 30   // Iterm windup constants for PI control
 #define ITERM_MAX 10000
 
-#define ANGLE_OFFSET 2    // Offset angle for balance (to compensate robot own weight distribution)
+#define ANGLE_OFFSET 0.0  // Offset angle for balance (to compensate robot own weight distribution)
 
 uint8_t cascade_control_loop_counter = 0;
 
@@ -126,11 +124,11 @@ static void MX_TIM3_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-//void delay_us (uint16_t us)
-//{
-//	__HAL_TIM_SET_COUNTER(&htim3,0);  // set the counter value a 0
-//	while (__HAL_TIM_GET_COUNTER(&htim3) < us);  // wait for the counter to reach the us input in the parameter
-//}
+void delay_us (uint16_t us)
+{
+	__HAL_TIM_SET_COUNTER(&htim3,0);  // set the counter value a 0
+	while (__HAL_TIM_GET_COUNTER(&htim3) < us);  // wait for the counter to reach the us input in the parameter
+}
 /* USER CODE END 0 */
 float MPU_sensor_angle;
 float MPU_sensor_angleX;
@@ -197,8 +195,8 @@ int main(void)
 
 
 	    angle_adjusted = MPU_sensor_angle + angle_offset;
-//	    if ((MPU_sensor_angle>-5)&&(MPU_sensor_angle<15))
-//	      angle_adjusted_filtered = angle_adjusted_filtered*0.99 + MPU_sensor_angle*0.01;
+	    if ((MPU_sensor_angle>-15)&&(MPU_sensor_angle<15))
+	      angle_adjusted_filtered = angle_adjusted_filtered*0.99 + MPU_sensor_angle*0.01;
 
 
 
@@ -223,8 +221,7 @@ int main(void)
 
 	    // ROBOT SPEED CONTROL: This is a PI controller.
 	    //    input:user throttle(robot speed), variable: estimated robot speed, output: target robot angle to get the desired speed
-	    target_angle = 0;
-	      	    target_angle = speedPIControl(dt, estimated_speed_filtered, throttle, Kp_thr, Ki_thr);
+	    target_angle = speedPIControl(dt, estimated_speed_filtered, throttle, Kp_thr, Ki_thr);
 	    target_angle = constrain(target_angle, -max_target_angle, max_target_angle); // limited output
 
 
@@ -243,18 +240,18 @@ int main(void)
 	    motor1 = constrain(motor1, -MAX_CONTROL_OUTPUT, MAX_CONTROL_OUTPUT);
 	    motor2 = constrain(motor2, -MAX_CONTROL_OUTPUT, MAX_CONTROL_OUTPUT);
 
-	    int angle_ready = 70;  // Default angle
+	    int angle_ready = 74;  // Default angle
 	    if ((angle_adjusted < angle_ready) && (angle_adjusted > -angle_ready)) // Is robot ready (upright?)
 	    {
 	      // NORMAL MODE
-	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, RESET);  // Motors enable
+	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, SET);  // Motors enable
 	      // NOW we send the commands to the motors
 	      setMotorSpeedM1(motor1);
 	      setMotorSpeedM2(motor2);
 	    }
 	    else   // Robot not ready (flat), angle > angle_ready => ROBOT OFF
 	    {
-	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, SET); // Disable motors
+	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, RESET); // Disable motors
 	      setMotorSpeedM1(0);
 	      setMotorSpeedM2(0);
 	      PID_errorSum = 0;  // Reset PID I term

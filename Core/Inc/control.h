@@ -14,7 +14,7 @@
 #define ITERM_MAX_ERROR 30   // Iterm windup constants for PI control
 #define ITERM_MAX 10000
 #define ZERO_SPEED 65535
-#define MAX_ACCEL 14
+#define MAX_ACCEL 2
 
 void adjustPreiodTM1(int preiod);
 void adjustPreiodTM2(int preiod);

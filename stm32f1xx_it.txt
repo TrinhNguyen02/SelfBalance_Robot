@@ -215,20 +215,12 @@ void TIM1_UP_IRQHandler(void)
     return;
   // We generate 1us STEP pulse
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, SET);
-//  delay_us(100);
-//  for (int i=0; i<500; i++){
-//	  __NOP();
-//  }
-  for (int i=0; i<50; i++){
-	  __NOP();
-  }
+  //delay_1us();
   if (dir_M1 > 0)
     steps1--;
   else
     steps1++;
-//  delay_us(300);
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, RESET);
-
   /* USER CODE END TIM1_UP_IRQn 1 */
 }
 
@@ -246,12 +238,8 @@ void TIM2_IRQHandler(void)
     return;
   // We generate 1us STEP pulse
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, SET);
-//  delay_us(100);
-  for (int i=0; i<50; i++){
-	  __NOP();
-  }
 
-//  delay_us(1);
+  //delay_1us();
   if (dir_M2 > 0){
 	  steps2--;
   }
@@ -259,9 +247,6 @@ void TIM2_IRQHandler(void)
 	  steps2++;
   }
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, RESET);
-
-//  delay_us(300);
-
   /* USER CODE END TIM2_IRQn 1 */
 }
 

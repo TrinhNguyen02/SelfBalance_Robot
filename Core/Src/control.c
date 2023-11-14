@@ -33,7 +33,7 @@ void adjustPreiodTM1(int preiod)
 	  /* USER CODE BEGIN TIM1_Init 1 */
 	  /* USER CODE END TIM1_Init 1 */
 	  htim1.Instance = TIM1;
-	  htim1.Init.Prescaler = 36;
+	  htim1.Init.Prescaler = 35;
 	  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
 	  htim1.Init.Period = preiod;
 	  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -72,7 +72,7 @@ void adjustPreiodTM2(int preiod)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 36;
+  htim2.Init.Prescaler = 35;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = preiod;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -140,7 +140,7 @@ float positionPDControl(long actualPos, long setPointPos, float Kpp, float Kdp, 
   float output;
   float P;
 
-  P = constrain(Kpp*(float)(setPointPos - actualPos), -115, 115); // Limit command
+  P = constrain(Kpp*(float)(setPointPos - actualPos), -80, 80); // Limit command
   output = P + Kdp * (float)(speedM);
   return (output);
 }
@@ -163,7 +163,7 @@ void setMotorSpeedM1(int16_t tspeed)
   else
     speed_M1 = tspeed;
 
-  speed = speed_M1 * 25; // 1/8 Microstepping
+  speed = speed_M1 * 40; // 1/16 Microstepping
 
   if (speed == 0)
   {
@@ -200,7 +200,7 @@ void setMotorSpeedM2(int16_t tspeed)
 
   // Limit max speed?
 
-  // WE LIMIT MAX ACCELERATION of the motors
+//   WE LIMIT MAX ACCELERATION of the motors
   if ((speed_M2 - tspeed) > MAX_ACCEL)
     speed_M2 -= MAX_ACCEL;
   else if ((speed_M2 - tspeed) < -MAX_ACCEL)
@@ -209,7 +209,7 @@ void setMotorSpeedM2(int16_t tspeed)
     speed_M2 = tspeed;
 
 
-  speed = speed_M2 * 25; // 1/8 Microstepping
+  speed = speed_M2 * 40; // 1/16 Microstepping
 
   if (speed == 0)
   {

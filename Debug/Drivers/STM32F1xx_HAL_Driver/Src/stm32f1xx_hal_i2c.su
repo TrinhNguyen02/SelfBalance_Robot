@@ -71,7 +71,7 @@ stm32f1xx_hal_i2c.c:7013:13:I2C_DMAXferCplt	32	static
 stm32f1xx_hal_i2c.c:7151:13:I2C_DMAError	24	static
 stm32f1xx_hal_i2c.c:7186:13:I2C_DMAAbort	32	static
 stm32f1xx_hal_i2c.c:7289:26:I2C_WaitOnFlagUntilTimeout	24	static
-stm32f1xx_hal_i2c.c:7323:26:I2C_WaitOnMasterAddressFlagUntilTimeout	24	static
+stm32f1xx_hal_i2c.c:7324:26:I2C_WaitOnMasterAddressFlagUntilTimeout	24	static
 stm32f1xx_hal_i2c.c:7375:26:I2C_WaitOnTXEFlagUntilTimeout	24	static
 stm32f1xx_hal_i2c.c:7413:26:I2C_WaitOnBTFFlagUntilTimeout	24	static
 stm32f1xx_hal_i2c.c:7451:26:I2C_WaitOnSTOPFlagUntilTimeout	24	static
