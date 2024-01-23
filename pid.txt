@@ -1,0 +1,8 @@
+float Kp = 1.7;
+float Kd = 0.35;
+float Kp_thr = 0.2;
+float Ki_thr = 0.0001;
+
+float Kp_position = 0.2;
+float Kd_position = 1.76;
+

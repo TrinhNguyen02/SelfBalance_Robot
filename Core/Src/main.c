@@ -19,78 +19,17 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "control.h"
-#include "MPU6050.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "control.h"
+#include "MPU6050.h"
 /* USER CODE END Includes */
 
-// NORMAL MODE PARAMETERS (MAXIMUN SETTINGS)
-#define MAX_THROTTLE 550
-#define MAX_STEERING 140
-#define MAX_TARGET_ANGLE 14
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
 
-// PRO MODE = MORE AGGRESSIVE (MAXIMUN SETTINGS)
-#define MAX_THROTTLE_PRO 780   // Max recommended value: 860
-#define MAX_STEERING_PRO 260   // Max recommended value: 280
-#define MAX_TARGET_ANGLE_PRO 26   // Max recommended value: 32
-
-// Default control terms for EVO 2
-#define KP 0.32
-#define KD 0.05
-#define KP_THROTTLE 0.010
-#define KI_THROTTLE 0.02
-
-
-#define KP_POSITION 0.1
-#define KD_POSITION 0.4
-
-
-// Control gains for raiseup (the raiseup movement requiere special control parameters)
-#define KP_RAISEUP 0.1
-#define KD_RAISEUP 0.16
-#define KP_THROTTLE_RAISEUP 0   // No speed control on raiseup
-#define KI_THROTTLE_RAISEUP 0.0
-
-#define MAX_CONTROL_OUTPUT 500
-#define ITERM_MAX_ERROR 30   // Iterm windup constants for PI control
-#define ITERM_MAX 10000
-
-#define ANGLE_OFFSET 2    // Offset angle for balance (to compensate robot own weight distribution)
-
-uint8_t cascade_control_loop_counter = 0;
-
-float angle_adjusted_filtered=0.0;
-float Kp = KP;
-float Kd = KD;
-float Kp_thr = KP_THROTTLE;
-float Ki_thr = KI_THROTTLE;
-float Kp_user = KP;
-float Kd_user = KD;
-float Kp_thr_user = KP_THROTTLE;
-float Ki_thr_user = KI_THROTTLE;
-float Kp_position = KP_POSITION;
-float Kd_position = KD_POSITION;
-bool newControlParameters = false;
-bool modifing_control_parameters = false;
-
-
-float PID_errorOld = 0;
-float PID_errorOld2 = 0;
-float setPointOld = 0;
-
-
-
-float max_throttle = MAX_THROTTLE;
-float max_steering = MAX_STEERING;
-float max_target_angle = MAX_TARGET_ANGLE;
-
-
-float angle_offset = ANGLE_OFFSET;
-MPU6050_t MPU6050;
-
-bool positionControlMode = false;
+/* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
@@ -103,10 +42,44 @@ bool positionControlMode = false;
 
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_rx;
+DMA_HandleTypeDef hdma_i2c1_tx;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+
+UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_rx;
+
+#define MAX_CONTROL_OUTPUT 320
+
+
+float Kp = 6.95;
+float Kd = 0.8;
+float Kp_thr = 0.03;
+float Ki_thr = 0;
+
+float Kp_position = 0.85;
+float Kd_position = 0.22;
+
+float max_target_angle = 8;
+
+float angle_offset = 2.6;
+
+MPU6050_t MPU6050;
+
+float MPU_sensor_angle;
+float trimAngle = 0;
+
+uint8_t bufUart[3];
+
+int X_axis = 1;
+int Y_axis = 1;
+int steeringRight = 0;
+int steeringLeft = 0;
+int fbMove = 0;
+
 
 /* USER CODE BEGIN PV */
 
@@ -115,25 +88,87 @@ TIM_HandleTypeDef htim3;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+ if(huart->Instance == huart1.Instance)
+ {
+   HAL_UART_Receive_IT(&huart1, bufUart, 3);
+   if(bufUart[0]=='P'){
+	   Kp = (float)(bufUart[1] << 8 | bufUart[2])/100;
+   }
+   else if(bufUart[0]=='D'){
+	   Kd = (float)(bufUart[1] << 8 | bufUart[2])/100;
+   }
+   else if(bufUart[0]=='p'){
+	   Kp_position = (float)(bufUart[1] << 8 | bufUart[2])/100;
+   }
+   else if(bufUart[0]=='d'){
+	   Kd_position = (float)(bufUart[1] << 8 | bufUart[2])/100;
+   }
+   else if(bufUart[0]=='t'){
+	   Kp_thr = (float)(bufUart[1] << 8 | bufUart[2])/100;
+   }
+   else if(bufUart[0]=='T'){
+	   Ki_thr = (float)(bufUart[1] << 8 | bufUart[2])/100;
+   }
+   else if(bufUart[0]=='X'){
+	   X_axis = (int)(bufUart[1] << 8 | bufUart[2]);
+   }
+   else if(bufUart[0]=='Y'){
+	   Y_axis = (int)(bufUart[1] << 8 | bufUart[2]);
+   }
+   else if(bufUart[0]=='A'){
+	   int16_t trim = (bufUart[1] << 8 | bufUart[2]);
+	   trimAngle = (float)trim/10;
+   }
+   HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+ }
+}
 
-//void delay_us (uint16_t us)
-//{
-//	__HAL_TIM_SET_COUNTER(&htim3,0);  // set the counter value a 0
-//	while (__HAL_TIM_GET_COUNTER(&htim3) < us);  // wait for the counter to reach the us input in the parameter
-//}
+void move(int X_axis, int Y_axis){
+	if ((X_axis -1 ) == 0 && (Y_axis -1 ) == 1) {			// forward
+		fbMove = 8;
+	}
+	else if ((X_axis -1 ) == 0 && (Y_axis -1 ) == -1) {		// backward
+		fbMove = -8;
+	}
+	else if ((X_axis -1 ) == -1 && (Y_axis -1 ) == 0) {		// left
+		steeringLeft = -50; steeringRight = 50;
+	}
+	else if ((X_axis -1 ) == 1 && (Y_axis -1 ) == 0) {		// right
+		steeringLeft = 50; steeringRight = -50;
+	}
+	else if ((X_axis -1 ) == -1 && (Y_axis -1 ) == 1) {		// left forward
+		steeringLeft = 25; steeringRight = 50;
+	}
+	else if ((X_axis -1 ) == 1 && (Y_axis -1 ) == 1) {		// right forward
+		steeringLeft = 50; steeringRight = 25;
+	}
+	else if ((X_axis -1 ) == -1 && (Y_axis -1 ) == -1) {		// left backward
+		steeringLeft = -25; steeringRight = -50;
+	}
+	else if ((X_axis -1 ) == 1 && (Y_axis -1 ) == -1) {		// right backward
+		steeringLeft = -50; steeringRight = -25;
+	}
+	else if ((X_axis -1 ) == 0 && (Y_axis -1 ) == 0) {
+		steeringLeft = 0; steeringRight = 0;
+		fbMove = 0;
+	}
+}
 /* USER CODE END 0 */
-float MPU_sensor_angle;
-float MPU_sensor_angleX;
+
 /**
   * @brief  The application entry point.
   * @retval int
@@ -147,9 +182,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-
-
-		HAL_Init();
+    HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -164,44 +197,40 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_I2C1_Init();
   MX_TIM3_Init();
-  /* USER CODE BEGIN 2 */
+  MX_USART1_UART_Init();
+//  /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim1);
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_TIM_Base_Start_IT(&htim3);
+  HAL_UART_Receive_IT(&huart1, bufUart, 3);
 
 
   MPU6050_Init(&hi2c1);
 
   /* USER CODE END 2 */
-  timer_old = __HAL_TIM_GET_COUNTER(&htim3);
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
-	    loop_counter++;
-	    slow_loop_counter++;
+	    move(X_axis, Y_axis);
+
 	    dt = (timer_value - timer_old) * 0.000001; // dt in seconds
 	    timer_old = timer_value;
 	    timer_value = __HAL_TIM_GET_COUNTER(&htim3);
 	    angle_adjusted_Old = angle_adjusted;
+
 //	     Get new orientation angle from IMU (MPU6050)
 	    MPU6050_Read_All(&hi2c1, &MPU6050);
-	    MPU_sensor_angle = (float)MPU6050.KalmanAngleY;
-//	    MPU_sensor_angleX = (float)MPU6050.KalmanAngleX;
-
+	    MPU_sensor_angle = (float)MPU6050.KalmanAngleY + trimAngle + fbMove;
 
 	    angle_adjusted = MPU_sensor_angle + angle_offset;
-//	    if ((MPU_sensor_angle>-5)&&(MPU_sensor_angle<15))
-//	      angle_adjusted_filtered = angle_adjusted_filtered*0.99 + MPU_sensor_angle*0.01;
-
-
-
 
 	    // We calculate the estimated robot speed:
 	    // Estimated_Speed = angular_velocity_of_stepper_motors(combined) - angular_velocity_of_robot(angle measured by IMU)
@@ -212,21 +241,19 @@ int main(void)
 	    estimated_speed_filtered = estimated_speed_filtered * 0.9 + (float)estimated_speed * 0.1; // low pass filter on estimated speed
 
 	      // POSITION CONTROL. INPUT: Target steps for each motor. Output: motors speed
-	      motor1_control = positionPDControl(steps1, target_steps1, Kp_position, Kd_position, speed_M1);
-	      motor2_control = positionPDControl(steps2, target_steps2, Kp_position, Kd_position, speed_M2);
+	    motor1_control = positionPDControl(steps1, target_steps1, Kp_position, Kd_position, speed_M1);
+	    motor2_control = positionPDControl(steps2, target_steps2, Kp_position, Kd_position, speed_M2);
 
 //	       Convert from motor position control to throttle / steering commands
-	      throttle = (motor1_control + motor2_control) / 2;
-	      throttle = constrain(throttle, -10, 10);
-	      steering = motor2_control - motor1_control;
-	      steering = constrain(steering, -10, 10);
+	    throttle = (motor1_control + motor2_control) / 2;
+	    throttle = constrain(throttle, -100, 100);
+
 
 	    // ROBOT SPEED CONTROL: This is a PI controller.
 	    //    input:user throttle(robot speed), variable: estimated robot speed, output: target robot angle to get the desired speed
 	    target_angle = 0;
-	      	    target_angle = speedPIControl(dt, estimated_speed_filtered, throttle, Kp_thr, Ki_thr);
+	    target_angle = speedPIControl(dt, estimated_speed_filtered, throttle, Kp_thr, Ki_thr);
 	    target_angle = constrain(target_angle, -max_target_angle, max_target_angle); // limited output
-
 
 
 //	     Stability control (100Hz loop): This is a PD controller.
@@ -236,8 +263,8 @@ int main(void)
 	    control_output = constrain(control_output, -MAX_CONTROL_OUTPUT, MAX_CONTROL_OUTPUT); // Limit max output from control
 
 	    // The steering part from the user is injected directly to the output
-	    motor1 = control_output + steering;
-	    motor2 = control_output - steering;
+	    motor1 = control_output + steeringRight;
+	    motor2 = control_output + steeringLeft ;
 
 	    // Limit max speed (control output)
 	    motor1 = constrain(motor1, -MAX_CONTROL_OUTPUT, MAX_CONTROL_OUTPUT);
@@ -249,29 +276,19 @@ int main(void)
 	      // NORMAL MODE
 	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, RESET);  // Motors enable
 	      // NOW we send the commands to the motors
-	      setMotorSpeedM1(motor1);
-	      setMotorSpeedM2(motor2);
+	    	setMotorSpeedM1(motor1);
+	    	setMotorSpeedM2(motor2);
 	    }
 	    else   // Robot not ready (flat), angle > angle_ready => ROBOT OFF
 	    {
 	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, SET); // Disable motors
-	      setMotorSpeedM1(0);
-	      setMotorSpeedM2(0);
-	      PID_errorSum = 0;  // Reset PID I term
-	      Kp = KP_RAISEUP;   // CONTROL GAINS FOR RAISE UP
-	      Kd = KD_RAISEUP;
-	      Kp_thr = KP_THROTTLE_RAISEUP;
-	      Ki_thr = KI_THROTTLE_RAISEUP;
-	      // RESET steps
-	      steps1 = 0;
-	      steps2 = 0;
-	      positionControlMode = false;
-//	      OSCmove_mode = false;
-	      throttle = 0;
-	      steering = 0;
+	    	setMotorSpeedM1(0);
+	    	setMotorSpeedM2(0);
+	    	steps1 = 0;
+	    	steps2 = 0;
+	    	throttle = 0;
+	    	steering = 0;
 	    }
-
-
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -481,6 +498,61 @@ static void MX_TIM3_Init(void)
   /* USER CODE BEGIN TIM3_Init 2 */
 
   /* USER CODE END TIM3_Init 2 */
+
+}
+
+/**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
+  /* DMA1_Channel6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
+  /* DMA1_Channel7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel7_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel7_IRQn);
 
 }
 

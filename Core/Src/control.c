@@ -108,7 +108,7 @@ float stabilityPDControl(float DT, float input, float setPoint,  float Kp, float
   // Kd is implemented in two parts
   //    The biggest one using only the input (sensor) part not the SetPoint input-input(t-1).
   //    And the second using the setpoint to make it a bit more agressive   setPoint-setPoint(t-1)
-  float Kd_setPoint = constrain((setPoint - setPointOld), -8, 8); // We limit the input part...
+  float Kd_setPoint = constrain((setPoint - setPointOld), -12, 12); // We limit the input part...
   output = Kp * error + (Kd * Kd_setPoint - Kd * (input - PID_errorOld)) / DT;
   //Serial.print(Kd*(error-PID_errorOld));Serial.print("\t");
   //PID_errorOld2 = PID_errorOld;
@@ -207,8 +207,6 @@ void setMotorSpeedM2(int16_t tspeed)
     speed_M2 += MAX_ACCEL;
   else
     speed_M2 = tspeed;
-
-
   speed = speed_M2 * 40; // 1/16 Microstepping
 
   if (speed == 0)

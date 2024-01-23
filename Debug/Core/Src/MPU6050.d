@@ -24,6 +24,7 @@ Core/Src/MPU6050.o: ../Core/Src/MPU6050.c ../Core/Inc/main.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h \
  ../Core/Inc/control.h ../Core/Inc/stm32f1xx_it.h ../Core/Inc/MPU6050.h
 
 ../Core/Inc/main.h:
@@ -77,6 +78,8 @@ Core/Src/MPU6050.o: ../Core/Src/MPU6050.c ../Core/Inc/main.h \
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h:
 
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h:
+
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h:
 
 ../Core/Inc/control.h:
 

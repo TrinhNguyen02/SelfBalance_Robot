@@ -46,11 +46,6 @@ typedef uint8_t bool;
 /* USER CODE BEGIN EC */
 
 
-uint8_t cascade_control_loop_counter;
-uint8_t loop_counter;       // To generate a medium loop 40Hz
-uint8_t slow_loop_counter;  // slow loop 2Hz
-uint8_t sendBattery_counter; // To send battery status
-int16_t BatteryValue;
 
 long timer_old;
 long timer_value;

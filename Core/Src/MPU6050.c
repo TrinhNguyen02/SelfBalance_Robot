@@ -4,7 +4,7 @@
 #include "control.h"
 #include "stm32f1xx_hal.h"
 #include "MPU6050.h"
-
+#include "math.h"
 
 
 extern I2C_HandleTypeDef hi2c1;
